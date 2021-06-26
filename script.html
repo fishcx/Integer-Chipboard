@@ -1,0 +1,531 @@
+<script>
+	$( function() {
+    // start with a board value of 0 before adding any chips
+    var testing = false;
+    var value = 0;
+    var erasing = false;
+    var breaking = false;
+    var pointer = false;
+    turnOnPointer();
+    var redChips = [];
+    var blackChips = [];
+    var idNum = 0;
+    var activeChip = "";
+    
+    function showInfo(){
+       $('#message').html("Active Chip: "+activeChip+"<br>Red chips: "+redChips+", Black chips: "+blackChips+"<br>Board value:"+value); 
+    }
+    if(testing){
+      showInfo();
+      setInterval(showInfo, 3000)
+    }
+    
+    if($(window).width() < 480){
+       $('#bottom-menu').show();
+       $('#top-menu').hide();
+       $("#new-problem").val("New");
+       $("#show-answer").val("Show");
+    } else{
+       $('#top-menu').show();
+       $('#bottom-menu').hide();
+    }
+    
+    $(".draggable").draggable({
+       revert: 'invalid',
+       appendTo: '#box',
+       scroll: false,
+
+    });
+
+    $(".in-menu").each( function(elem) {
+       $(this).draggable("option", "helper", 'clone');
+
+       // can't use .width() and .height() before images load
+       var width = parseInt($(this).css('width'));
+       var height = parseInt($(this).css('height'));
+       $(this).draggable("option", "cursorAt",
+                            {'top': height/2, 'left': width/2});
+    });
+    
+    $(".in-menu").on("click",chipClick);
+    
+    $( "#box" ).droppable({
+      drop: function(event, ui) {
+        var clone = cloneChip(ui.draggable,this,0,true);
+        
+        if(clone.hasClass("zero")){
+        
+        clone.on("click",function(event) {
+             event.stopPropagation(); // use this because both the box and the clone have onclick events. This removes the box onclick and only allows for the clone at this position
+             if(breaking){
+              
+                // split the zero into two separate chips
+                var newRed = cloneChip($('#red-chip'),'#box',30,false);
+                var newBlack = cloneChip($('#black-chip'),'#box',-30,false);
+                                
+                // remove zero pair
+                $(this).remove();
+                if($('.clone.zero').length < 1){ resetBreaker();} // reset breaker when no zeros left to break
+              }
+           });
+           
+       }
+        
+       }
+    });
+    
+    function chipClick(){
+        
+        // update allows for clicking a red chip directly onto a black one without accidentally grabbing the other one instead
+        if($(this).hasClass('in-menu')){ resetEraser(); resetBreaker();}
+        
+        if(activeChip == "" ||  $(this).hasClass('in-menu')){
+        
+        // reset activeChip to be the new chip that was clicked on
+        activeChip = $(this).attr('id'); 
+
+        resetPointer();
+
+         // add selected to the clicked chip
+        if($(this).hasClass('zero')){
+        
+          $(this).children('span').addClass("selected");
+          
+        }
+        else{
+        
+          $(this).addClass('selected');
+        
+        }
+        
+        }
+        
+        // handles if eraser is active
+        if(erasing && !$(this).hasClass("in-menu")){
+           if($(this).hasClass("red-dot")){  
+              value++; 
+              removeItemFromArray($(this).attr('id'),redChips);
+            } 
+            else if($(this).hasClass("black-dot")){
+               value--; 
+               removeItemFromArray($(this).attr('id'),blackChips);
+            }
+            // hide this from user
+            $(this).remove();
+            // check to see if new board represents answer
+            checkAnswer(); 
+        }
+        
+    }
+    
+    $( "#box" ).on("click",createByClick);
+    
+    
+    function createByClick(){
+        if(activeChip != "" && !breaking){
+          var clone = cloneChip(activeChip,this,0,true); 
+          
+          if(clone.hasClass("zero")){
+        
+        clone.on("click",function(event) {
+             event.stopPropagation(); // use this because both the box and the clone have onclick events. This removes the box onclick and only allows for the clone at this position
+             if(breaking){
+              
+                // split the zero into two separate chips
+                var newRed = cloneChip($('#red-chip'),'#box',30,false);
+                var newBlack = cloneChip($('#black-chip'),'#box',-30,false);
+                                
+                // remove zero pair
+                $(this).remove();
+                if($('.clone.zero').length < 1){ resetBreaker();} // reset breaker when no zeros left to break
+              }
+           });
+           
+       }
+          
+        }
+    }
+    
+    // helper function for cloneChip so that it doesn't call itself to create a zero pair
+    function cloneHelper(sourceChip,div,change){
+
+       if((typeof sourceChip) == "string"){  sourceChip = $("#"+sourceChip); }
+       
+       var clone = sourceChip.clone();
+         
+        // make sure you append to the div BEFORE finding the width and height
+        clone.appendTo( div );
+        
+        var width = parseInt(clone.width());
+        var height = parseInt(clone.height());
+    
+        // change value of the board only if a new chip was added from the menu
+        if(sourceChip.hasClass("in-menu")){ 
+            // increase idNum for new item
+            idNum++;
+            if(sourceChip.hasClass("red-dot")){  
+                value--; 
+                // add new chip to the red chips array
+                redChips.push('chip-'+idNum);
+            }
+            else if(sourceChip.hasClass("black-dot")){  
+                value++; 
+                // add new chip to the black chips array
+                blackChips.push('chip-'+idNum);
+            } 
+            else if(breaking){
+                clone.children('.black-dot').css('background','#3a3f47'); 
+                clone.children('.red-dot').css('background','#d94853'); 
+            }
+            
+            clone.attr('id','chip-'+idNum);
+        } 
+        // remove the old position if it is not a menu chip
+        else{
+           // the removing of the old position rearranges the other chips on the board
+           clone.attr('id',sourceChip.attr('id'));
+           sourceChip.remove(); 
+        }
+        
+        clone.removeClass("in-menu"); 
+        //clone.removeClass("selected"); 
+        clone.addClass("clone"); 
+        clone.css("left", ""); // I don't think this is necessary to remove (doesn't make a difference) but it shouldn't be needed in the field
+        
+        clone.draggable({
+           revert: 'invalid',
+           appendTo: '#box',
+           scroll: false
+         }); // make the clone a draggable object
+        
+        // this allows for accuracy in the new dropped location when a new chip is moved around (doesn't "snap" to a grid, drops exactly where it was)
+        clone.draggable("option", "cursorAt",
+                            {'top': height/2, 'left': width/2});
+        
+        clone.offset({'top':event.pageY-height/2 ,
+                      'left':event.pageX-width/2+change });
+        
+        // check to see if new board represents answer
+        checkAnswer(); 
+        
+        return clone;
+      
+    }
+    
+    function cloneChip(sourceChip,div,change,combineOnOverlap){
+        
+        var clone = cloneHelper(sourceChip,div,change);
+        
+        if(combineOnOverlap){
+        
+        // compare the position of each chip in the chips array to the new chip to see if there are black/red and overlap
+        if(clone.hasClass('red-dot')){
+           for(var i = 0; i < blackChips.length; i++){
+               if(checkCollisions( clone.attr('id'), blackChips[i])){
+                   
+                   // remove original chips
+                   clone.remove(); 
+                   removeItemFromArray(clone.attr('id'),redChips);
+                   $('#'+blackChips[i]).remove(); 
+                   removeItemFromArray(blackChips[i],blackChips);
+                   
+                   // combine into a zero pair  
+                   //clone = cloneHelper($('#zero-chip'),'#box',-1*$('.in-menu.black-dot').width());// not sure why the last param is needed
+                   clone = cloneHelper($('#zero-chip'),'#box',0);
+
+                   // break out of for loop
+                   i = blackChips.length+2;
+               }
+           }
+           
+        }
+        
+        else if(clone.hasClass('black-dot')){
+           for(var i = 0; i < redChips.length; i++){
+               if(checkCollisions( clone.attr('id'), redChips[i])){
+                   
+                   // remove original chips
+                   clone.remove(); 
+                   removeItemFromArray(clone.attr('id'),blackChips);
+                   $('#'+redChips[i]).remove(); 
+                   removeItemFromArray(redChips[i],redChips);
+                   
+                   // combine into a zero pair  
+                   clone = cloneHelper($('#zero-chip'),'#box',0);
+
+                   // break out of for loop
+                   i = redChips.length+2;
+                     
+               }
+           }
+        }
+        
+        }
+        // for testing
+        clone.on("click",chipClick);
+        return clone;
+         
+    }
+    
+    function removeItemFromArray(item,array){
+       var index = array.indexOf(item);
+       if (index > -1) {
+          array.splice(index, 1);
+       }
+       return array;
+    }
+    
+    function getPositions(item) {
+       var element = $('#'+item);
+       var pos = element.position();
+       var width = element.width();
+       var height = element.height();
+       return [ [ pos.left, pos.left + width ], [ pos.top, pos.top + height ] ];
+    }
+    
+    function comparePositions(p1, p2) {
+       var x1 = p1[0] < p2[0] ? p1 : p2;
+       var x2 = p1[0] < p2[0] ? p2 : p1;
+       return x1[1] > x2[0] || x1[0] === x2[0] ? true : false;
+     }
+
+     function checkCollisions(chip1,chip2){
+       var pos = getPositions(chip1);
+       var pos2 = getPositions(chip2);
+       var horizontalMatch = comparePositions(pos[0], pos2[0]);
+       var verticalMatch = comparePositions(pos[1], pos2[1]);   
+       return horizontalMatch && verticalMatch;
+     }
+    
+    function resetPointer(){
+    
+         // reset pointer
+         $('.pointer').css("background-color","white");
+         $('.pointer').css("color","black");
+         $('.pointerPath').attr("fill", "white");
+         $('.pointerPath').attr("stroke", "black");
+         // remove selected from all items
+         $('.chip').removeClass('selected');
+         pointer = false;
+         
+    }
+    
+    function turnOnPointer(){
+        $('.pointer').css("background-color","#1F1F69");
+        $('.pointer').css("color","white");
+        $('.pointerPath').attr("fill", "#1F1F69");
+        $('.pointerPath').attr("stroke", "white");
+        // remove selected from all items
+        $('.chip').removeClass('selected');
+        pointer = true;
+        activeChip = "";
+    }
+    
+    function resetEraser(){
+    
+         // reset erasing
+         $('.erase').css("background-color","white");
+         $('.erase').css("color","black");
+         $('.eraserPic').attr("fill", "white");
+         $('.eraserPic').attr("stroke", "black");
+         $('.clone').css('cursor','');
+         $('.clone.zero .black-dot').css('cursor',''); 
+         $('.clone.zero .red-dot').css('cursor',''); 
+         erasing = false;
+         
+         // check to see if new board represents answer
+        checkAnswer(); 
+         
+    }
+    
+    function resetBreaker(){
+    
+         // reset erasing
+         $('.break').css("background-color","white");
+         $('.break').css("color","black");
+         $('.breakPic').attr("fill", "white");
+         $('.breakPic').attr("stroke", "black");
+         $('.clone.zero .black-dot').css('cursor',''); 
+         $('.clone.zero .red-dot').css('cursor',''); 
+         $('.clone.zero .black-dot').css('background','black'); 
+         $('.clone.zero .red-dot').css('background','red'); 
+         breaking = false;
+         
+    }
+    
+    $('.pointer').click(function() {
+         
+         resetEraser();
+         resetBreaker();
+         
+         // turn on pointer
+         if(pointer == false){
+         
+            turnOnPointer();
+         }
+        
+         // turn off pointer
+         else {
+            resetPointer();
+         }
+         
+        
+    });
+    
+    $('.reset').click(function() {
+    
+         // NOTE - alert confirmation message does not work when embedded in Google sites
+         // reset value of board
+         value = 0;
+         // hide this from user
+         // $('#box p:first').html("Chip board value = "+value);
+         $('.clone').remove();
+         redChips = [];
+         blackChips = [];
+         resetEraser();
+         resetBreaker();
+         turnOnPointer();
+        
+    });
+    
+    $('.erase').click(function() {
+         
+         resetBreaker();
+         resetPointer();
+         activeChip = "";
+         $('.chip').removeClass('selected');
+         
+         // turn on erasing
+         if(erasing == false){
+         
+            $('.erase').css("background-color","#1F1F69");
+            $('.erase').css("color","white");
+            $('.eraserPic').attr("fill", "#1F1F69");
+            $('.eraserPic').attr("stroke", "white");
+            $('.clone').css('cursor','crosshair');
+            $('.clone.zero .black-dot').css('cursor','crosshair'); 
+            $('.clone.zero .red-dot').css('cursor','crosshair'); 
+            erasing = true;
+         }
+        
+         // turn off erasing
+         else {
+            resetEraser();
+         }
+         
+    });
+    
+    $('.break').click(function() {
+         
+         // reset eraser first (only do one or the other)
+         resetEraser();
+         resetPointer();
+         
+         // turn on breaking
+         if(breaking == false){
+         
+            $('.break').css("background-color","#1F1F69");
+            $('.break').css("color","white");
+            $('.breakPic').attr("fill", "#1F1F69");
+            $('.breakPic').attr("stroke", "white");
+            $('.clone.zero .black-dot').css('cursor','crosshair'); // only want the crosshair to change for the zero pair
+            $('.clone.zero .red-dot').css('cursor','crosshair'); // only want the crosshair to change for the zero pair
+            $('.clone.zero .black-dot').css('background','#3a3f47'); 
+            $('.clone.zero .red-dot').css('background','#d94853'); 
+            breaking = true;
+         }
+        
+         // turn off breaking
+         else {
+            resetBreaker();
+         }
+         
+    });
+    
+    $('#new-problem').click(function(){
+         var a = produceAddSubtract(2); // two numbers
+         $('#problem').html(a[0]);
+         $('#answer').html(a[1]);
+         $('#answer-holder').val(parseInt($('#answer').html().toString().replace("\\(","").replace("\\)","")));
+         if($(window).width() < 600){
+            $("#show-answer").val("Show");
+         } else {
+            $("#show-answer").val("Show Answer");
+         }
+         $('#answer').hide();
+         renderMathInElement(document.body);
+    });
+    
+    $("#show-answer").click(function(){
+       if($("#answer").is(":hidden") ){
+          checkAnswer();
+          $("#answer").show();
+          if($(window).width() < 600){
+            $("#show-answer").val("Hide");
+         } else {
+            $("#show-answer").val("Hide Answer");
+         }
+       } else{
+         $("#answer").hide();
+         if($(window).width() < 600){
+            $("#show-answer").val("Show");
+         } else {
+            $("#show-answer").val("Show Answer");
+         }
+        }
+    });
+    
+    function checkAnswer(){
+      
+      if($('#problem').html() != ""){
+    
+        if($('#answer-holder').val() == value){
+           $('#answer').css("background-color","green");
+           $("#answer").attr('title', 'Your board is correct!');
+        } 
+        else{
+           $('#answer').css("background-color","red");
+           $("#answer").attr('title', 'Your board is incorrect, try again');
+        } 
+        
+        }
+    }
+    
+    // helper function for adding and subtracting
+    function produceAddSubtract(terms){
+       
+       var a = non_zero_random(-10,10);
+       var b = 0;
+       var output = new Array();
+       var answer = a;
+       output[0] = "\\("+a;
+
+       // allows for more than just two numbers
+       for(var i = terms-1;  i > 0; i--){
+       
+       b = non_zero_random(-10,10);
+       
+          switch(random(0,1)){
+           
+              // add
+              case 0:
+              output[0] += " + "+b;
+              answer += b;
+              break;
+           
+              // subtract
+              case 1:
+              output[0] += " - "+b;
+              answer -= b;
+              break;
+           }
+        
+        }
+        output[0] += "\\)";
+        output[1] = "\\("+formatDec(answer)+"\\)";
+        
+       return output;
+    }
+    
+  } );
+</script>
