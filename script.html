@@ -6,7 +6,7 @@
     var erasing = false;
     var breaking = false;
     var pointer = false;
-    turnOnPointer();
+    resetPointer(); // this was originally turnOnPointer(), not sure why
     var redChips = [];
     var blackChips = [];
     var idNum = 0;
@@ -84,7 +84,7 @@
         // reset activeChip to be the new chip that was clicked on
         activeChip = $(this).attr('id'); 
 
-        resetPointer();
+        resetPointer(); // I tried to make it so that you could combine multiple chips without having to reactive the pointer each time. Unfortunately, removing this function call breaks main functionality.  Would have to move this resetPointer() call somewhere more specific...
 
          // add selected to the clicked chip
         if($(this).hasClass('zero')){
